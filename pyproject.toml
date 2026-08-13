@@ -1,0 +1,29 @@
+[project]
+name = "provider-router"
+version = "0.1.0"
+description = "Vendor-failover orchestration for Claude/Codex/local-model agent work"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.8"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["provider_router*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "examples"]
+markers = ["integration: hits real codex/ollama, slow (~60-90s), excluded by default"]
+addopts = "-m 'not integration'"
