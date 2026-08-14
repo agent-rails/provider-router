@@ -106,6 +106,17 @@ def test_missing_provider_call_fn_is_skipped() -> None:
     assert result.attempts[-1].provider == Provider.MUSE
 
 
+def test_codex_first_success_is_not_degraded() -> None:
+    """Regression: a cascade that intentionally starts at codex (Claude can't invoke
+    itself, see docs/DESIGN.md) must not be flagged degraded just because the first
+    attempt wasn't Claude. Degraded means "didn't succeed on the first provider tried"."""
+    result = run_with_failover(TASK, {Provider.CODEX: lambda t: "codex response"})
+
+    assert result.response == "codex response"
+    assert result.failovers == 0
+    assert not result.degraded
+
+
 def test_telemetry_emitted_for_every_attempt() -> None:
     sink = InMemorySink()
 

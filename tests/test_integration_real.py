@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import pytest
+from real_adapters import muse_call_fn
 
 from provider_router.cascade import run_with_failover
 from provider_router.models import Provider
 from provider_router.types import ProviderTask
-from real_adapters import muse_call_fn
 
 
 def _simulated_claude_limit(_: ProviderTask) -> str:

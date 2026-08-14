@@ -15,7 +15,7 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 
 def codex_call_fn(task: ProviderTask) -> str:
     result = subprocess.run(
-        ["codex", "exec", "-s", "read-only", task.prompt],
+        ["codex", "exec", "-s", "read-only", "--skip-git-repo-check", task.prompt],
         capture_output=True,
         text=True,
         timeout=CODEX_TIMEOUT_S,

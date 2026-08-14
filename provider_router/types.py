@@ -50,4 +50,4 @@ class FailoverResult[ResponseT]:
 
     @property
     def degraded(self) -> bool:
-        return self.final_attempt.provider != Provider.CLAUDE
+        return self.final_attempt.provider != self.attempts[0].provider
