@@ -9,7 +9,7 @@ from provider_router.types import ProviderTask
 
 CODEX_TIMEOUT_S = 120
 MUSE_TIMEOUT_S = 180
-MUSE_MODEL = "muse-glimmer:30b-mlx"
+MUSE_MODEL = "deepseek-r1:8b"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 
