@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from provider_router.cascade import run_with_failover
-from provider_router.config import CODEX_LIMIT_PATTERNS
+from provider_router.config import CODEX_LIMIT_PATTERNS, NARROW_FAILOVER_TRIGGERS
 from provider_router.models import Provider
 from provider_router.telemetry import InMemorySink
 from provider_router.types import AllProvidersFailedError, FailureReason, ProviderTask
@@ -156,6 +156,41 @@ def test_a_codex_error_that_is_not_a_limit_propagates_instead_of_degrading() -> 
             {
                 Provider.CLAUDE: claude_fails,
                 Provider.CODEX: codex_auth_fails,
+                Provider.MUSE: lambda t: "muse should never be reached",
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    ("provider", "patterns"),
+    sorted(NARROW_FAILOVER_TRIGGERS.items(), key=lambda item: item[0].value),
+    ids=lambda value: value.value if isinstance(value, Provider) else "",
+)
+def test_no_pattern_subsumes_another(provider: Provider, patterns: tuple[str, ...]) -> None:
+    # Parametrizing a test over a pattern tuple cannot catch a redundant entry:
+    # deleting the entry deletes its own test case, so the suite stays green. This
+    # asserts the property that makes the per-pattern test meaningful -- every
+    # pattern must be independently reachable, or it is dead weight that looks
+    # defended.
+    subsumed = {pattern: [other for other in patterns if other != pattern and other in pattern] for pattern in patterns}
+    offenders = {pattern: hits for pattern, hits in subsumed.items() if hits}
+    assert not offenders, f"{provider.value} patterns contain a superstring of another pattern: {offenders}"
+
+
+def test_a_connection_reset_is_not_a_claude_limit() -> None:
+    # "resets" used to be a Claude limit pattern and matched this message, cascading
+    # a network error to another vendor as though quota had run out. A transport
+    # failure has to propagate: switching vendor hides it and the next run hits the
+    # same broken socket.
+    def claude_network_fails(_: ProviderTask) -> str:
+        raise RuntimeError("connection resets by peer")
+
+    with pytest.raises(RuntimeError, match="connection resets by peer"):
+        run_with_failover(
+            TASK,
+            {
+                Provider.CLAUDE: claude_network_fails,
+                Provider.CODEX: lambda t: "codex should never be reached",
                 Provider.MUSE: lambda t: "muse should never be reached",
             },
         )

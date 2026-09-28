@@ -71,8 +71,17 @@ exception text (`config.NARROW_FAILOVER_TRIGGERS`):
 
 | hop | cascades on | does not cascade on |
 |---|---|---|
-| Claude → Codex | session / usage-limit text | logic errors, tool errors |
+| Claude → Codex | session / usage-limit text | logic errors, tool errors, transport errors |
 | Codex → local | usage-limit text | auth failures, crashes, transient errors |
+
+Every pattern has to be a quota assertion, not a word that shows up near one. The
+Claude list carried `resets` until it was noticed that this matched `connection
+resets by peer` — a dead socket cascading to another vendor as though quota had run
+out. It was never load-bearing: the real message still matches on `session limit`
+and `you've hit your`. A test now pins that a connection reset propagates, and
+another rejects any pattern that is a superstring of another in the same list, since
+a subsumed pattern can never be the sole matcher and so looks defended while being
+untestable.
 
 A provider absent from `NARROW_FAILOVER_TRIGGERS` cascades on anything — that is the
 default for a provider whose limit signature nobody has caught yet, not a permanent

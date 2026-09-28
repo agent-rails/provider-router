@@ -6,11 +6,17 @@ CASCADE_ORDER: tuple[Provider, ...] = (Provider.CLAUDE, Provider.CODEX, Provider
 
 # Neither hop fails over on an arbitrary error: a logic, tool or auth failure
 # should be fixed, not routed around by switching vendor. Both gates are narrow.
+# "resets" was here and was dropped: it matched "connection resets by peer",
+# cascading a network error as though it were a quota limit -- the route-bugs-around
+# behaviour this gate exists to stop, and the same billing-surface mistake the codex
+# list below records. It was never load-bearing; the real message
+# ("You've hit your session limit - resets in 3h") still matches on "session limit"
+# and "you've hit your". Every pattern here must be a quota assertion, not a word
+# that happens to appear near one.
 CLAUDE_LIMIT_PATTERNS: tuple[str, ...] = (
     "session limit",
     "usage limit",
     "you've hit your",
-    "resets",
 )
 
 # Tightened from the original broad "cascade on any codex exception", which
@@ -45,10 +51,12 @@ CLAUDE_LIMIT_PATTERNS: tuple[str, ...] = (
 # longer degrades to the local model. docs/DESIGN.md noted auth failures were the
 # only codex errors observed at the time, and silently answering from a local model
 # when codex credentials are broken hides the breakage instead of surfacing it.
-CODEX_LIMIT_PATTERNS: tuple[str, ...] = (
-    "usage limit",
-    "hit your usage limit",
-)
+# One entry, not two. "hit your usage limit" was also here and is a strict superstring
+# of "usage limit", so it could never be the sole matcher -- and because the
+# per-pattern test parametrizes over this tuple, deleting it deleted its own test
+# case and the suite stayed green. A subsumed pattern is untestable by construction;
+# test_no_pattern_subsumes_another now rejects one.
+CODEX_LIMIT_PATTERNS: tuple[str, ...] = ("usage limit",)
 
 # Providers not listed here fail over on any exception, unmatched.
 NARROW_FAILOVER_TRIGGERS: dict[Provider, tuple[str, ...]] = {

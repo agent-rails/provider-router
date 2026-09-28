@@ -28,6 +28,28 @@ classification, and telemetry.
   that class of bug needs fixing, not a different vendor.
 - **Codex -> Muse**: same shape, matching `config.CODEX_LIMIT_PATTERNS`.
 
+### A pattern must assert quota, not sit near it
+
+Both lists are substring matches against the lowercased exception text, which makes
+a short pattern dangerous in a way a long one is not. Two entries failed that test
+and were removed:
+
+- `resets`, on the Claude hop, matched `connection resets by peer`. A dead socket
+  cascaded to a second vendor as though quota had run out — the route-bugs-around
+  behaviour this gate exists to stop, on the hop whose narrowness was never in
+  question. It was not load-bearing: the real message still matches on `session
+  limit` and `you've hit your`.
+- `hit your usage limit`, on the Codex hop, is a strict superstring of `usage
+  limit`, so it could never be the sole matcher. Worse, the per-pattern test
+  parametrizes over the tuple, so deleting the entry deleted its own test case and
+  the suite stayed green. A subsumed pattern looks defended and is untestable by
+  construction.
+
+Two tests hold the line: one asserts a connection reset propagates, the other
+rejects any pattern that is a superstring of another in the same list. The second
+is the more useful of the pair — it makes a whole class of dead entry impossible
+rather than pinning one instance.
+
 ### This hop was asymmetric until 2026-09-27, and the history is the point
 
 The Codex hop originally cascaded on *any* exception. The reason was recorded
