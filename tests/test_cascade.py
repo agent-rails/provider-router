@@ -49,12 +49,16 @@ def test_claude_non_limit_error_does_not_cascade() -> None:
         )
 
 
-def test_codex_any_failure_cascades_to_muse() -> None:
+def test_codex_limit_cascades_to_muse() -> None:
     def claude_fails(_: ProviderTask) -> str:
         raise RuntimeError("you've hit your session limit")
 
     def codex_fails(_: ProviderTask) -> str:
-        raise RuntimeError("network unreachable, nothing to do with limits")
+        # The real signature, from a codex CLI session that ran out mid-task.
+        raise RuntimeError(
+            "You've hit your usage limit. Upgrade to Pro, visit "
+            "https://chatgpt.com/codex/settings/usage to purchase more credits"
+        )
 
     result = run_with_failover(
         TASK,
@@ -78,7 +82,7 @@ def test_all_providers_fail_raises() -> None:
         raise RuntimeError("session limit hit")
 
     def codex_fails(_: ProviderTask) -> str:
-        raise RuntimeError("boom")
+        raise RuntimeError("usage limit reached")
 
     def muse_fails(_: ProviderTask) -> str:
         raise RuntimeError("ollama down")
@@ -132,3 +136,25 @@ def test_telemetry_emitted_for_every_attempt() -> None:
     assert len(sink.events) == 2
     assert len(sink.failures()) == 1
     assert len(sink.successes()) == 1
+
+
+def test_a_codex_error_that_is_not_a_limit_propagates_instead_of_degrading() -> None:
+    # The consequence of narrowing the codex gate, asserted rather than assumed.
+    # Answering from a local model when codex credentials are broken hides the
+    # breakage; docs/DESIGN.md records auth failures as the codex errors actually
+    # observed before a limit signature was caught.
+    def claude_fails(_: ProviderTask) -> str:
+        raise RuntimeError("you've hit your session limit")
+
+    def codex_auth_fails(_: ProviderTask) -> str:
+        raise RuntimeError("401 unauthorized: stored credentials rejected")
+
+    with pytest.raises(RuntimeError, match="401 unauthorized"):
+        run_with_failover(
+            TASK,
+            {
+                Provider.CLAUDE: claude_fails,
+                Provider.CODEX: codex_auth_fails,
+                Provider.MUSE: lambda t: "muse should never be reached",
+            },
+        )
