@@ -9,7 +9,6 @@ from provider_router.models import Provider
 class FailureReason(StrEnum):
     LIMIT = "limit"
     ERROR = "error"
-    UNAVAILABLE = "unavailable"
 
 
 @dataclass(frozen=True, slots=True)
