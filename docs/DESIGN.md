@@ -20,19 +20,49 @@ library never owns invocation. The caller supplies one `call_fn` per provider
 it wants in the cascade; `run_with_failover` owns only ordering, failure
 classification, and telemetry.
 
-## Asymmetric failover trigger (deliberate, not a bug)
+## Failover triggers are narrow on both hops
 
-- **Claude -> Codex**: narrow trigger. Only cascades when the failure message
-  matches a known session/usage-limit pattern (`config.CLAUDE_LIMIT_PATTERNS`).
-  A real logic or tool error propagates immediately instead of being silently
-  routed around — that class of bug needs fixing, not a different vendor.
-- **Codex -> Muse**: broad trigger. Cascades on any exception. There is no
-  confirmed codex-limit error string yet (only auth failures have been
-  observed), and the cost of waiting for one was judged higher than the risk
-  of over-triggering on an unrelated codex bug.
+- **Claude -> Codex**: only cascades when the failure message matches a known
+  session/usage-limit pattern (`config.CLAUDE_LIMIT_PATTERNS`). A real logic or
+  tool error propagates immediately instead of being silently routed around —
+  that class of bug needs fixing, not a different vendor.
+- **Codex -> Muse**: same shape, matching `config.CODEX_LIMIT_PATTERNS`.
 
-This asymmetry is config-driven (`NARROW_FAILOVER_TRIGGERS`), not hardcoded
-per hop, so it can be tightened once a real codex-limit signature is caught.
+### This hop was asymmetric until 2026-09-27, and the history is the point
+
+The Codex hop originally cascaded on *any* exception. The reason was recorded
+rather than assumed: there was no confirmed codex-limit error string — only auth
+failures had been observed — and the cost of waiting for one was judged higher
+than the risk of over-triggering on an unrelated codex bug. The default shipped
+with its own falsification condition attached: "config-driven, not hardcoded per
+hop, so it can be tightened once a real codex-limit signature is caught."
+
+A signature was caught mid-task while codex was verifying a release, and the gate
+was narrowed. Worth being precise about what that was: not a considered default
+being reversed on one observation, but a provisional one being discharged on the
+evidence it was waiting for.
+
+Only quota assertions are matched. An earlier draft also matched
+`purchase more credits` and `codex/settings/usage`; both were dropped because they
+are billing-surface strings — an upsell and a help link — which vendors attach to
+auth and entitlement errors generally, so matching them let an auth failure
+carrying a billing link degrade to the local model, the exact case the gate exists
+to stop.
+
+### What narrowing costs
+
+A codex auth failure, crash, or **transient** failure — a 429 with retry-after, a
+connect timeout — now propagates where it previously degraded to Muse. For auth
+and crashes that is the intent: answering from `deepseek-r1:8b` while codex
+credentials are broken converts a five-second fix into a silent quality
+regression, and the Muse tier is explicitly a last resort rather than a casual
+substitute.
+
+Transients are the honest cost. They are neither quota nor bug, and they are the
+one case where "keep the work moving" genuinely applies with nothing hidden. They
+are not modelled: a caller that wants them retried should retry, and widening the
+pattern list to catch them would restore the route-bugs-around behaviour the
+narrow gate exists to prevent.
 
 ## Scope
 

@@ -29,14 +29,25 @@ CLAUDE_LIMIT_PATTERNS: tuple[str, ...] = (
 # than open, but is worth an integration test against a real limit if one is ever
 # cheap to provoke.
 #
+# Only quota assertions are matched. "purchase more credits" and
+# "codex/settings/usage" were in an earlier draft and were dropped: they are
+# billing-surface strings -- an upsell and a help link -- which vendors attach to
+# auth and entitlement errors generally, so matching them let an auth failure
+# carrying a billing link degrade to the local model, the exact case this gate
+# exists to stop.
+#
+# Also no longer cascading: transient codex failures -- a 429 with retry-after, a
+# connect timeout. Those are neither quota nor bug, and this is the honest cost of
+# narrowing. A caller that wants them retried should retry; widening this list to
+# catch them would restore the route-bugs-around behaviour it exists to prevent.
+#
 # The consequence of narrowing that is worth stating: a codex *auth* failure no
 # longer degrades to the local model. docs/DESIGN.md noted auth failures were the
 # only codex errors observed at the time, and silently answering from a local model
 # when codex credentials are broken hides the breakage instead of surfacing it.
 CODEX_LIMIT_PATTERNS: tuple[str, ...] = (
     "usage limit",
-    "purchase more credits",
-    "codex/settings/usage",
+    "hit your usage limit",
 )
 
 # Providers not listed here fail over on any exception, unmatched.

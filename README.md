@@ -40,7 +40,8 @@ result = run_with_failover(
 result.response  # whatever the provider that succeeded returned
 result.failovers  # 0 if the first provider answered
 result.final_attempt  # which provider actually served it
-result.attempts  # every attempt, with its failure reason
+result.attempts  # every attempt tried, in cascade order
+result.degraded  # True when a lower tier served it -- flag output quality downstream
 ```
 
 Providers are tried in `config.CASCADE_ORDER`. A provider you don't pass is skipped
@@ -71,17 +72,24 @@ exception text (`config.NARROW_FAILOVER_TRIGGERS`):
 | hop | cascades on | does not cascade on |
 |---|---|---|
 | Claude → Codex | session / usage-limit text | logic errors, tool errors |
-| Codex → local | usage-limit text, credit-purchase prompt | auth failures, network errors |
+| Codex → local | usage-limit text | auth failures, crashes, transient errors |
 
 A provider absent from `NARROW_FAILOVER_TRIGGERS` cascades on anything — that is the
 default for a provider whose limit signature nobody has caught yet, not a permanent
 choice.
 
 The Codex gate was broad until 2026-09-27, because no real codex limit signature had
-been observed. One was caught mid-task and is now pinned. That narrowing has a
-consequence stated in `config.py` and asserted by a test: **a codex auth failure now
-propagates instead of quietly degrading to a local model**, because answering from a
-local model when codex credentials are broken hides the breakage.
+been observed — a default that shipped with its own falsification condition written
+into `docs/DESIGN.md`. One was caught mid-task and is now pinned.
+
+Two consequences, both stated in `config.py` and the first asserted by a test:
+**a codex auth failure now propagates instead of quietly degrading to a local
+model**, because answering from a local model when codex credentials are broken
+hides the breakage. And a **transient** codex failure — a 429 with retry-after, a
+connect timeout — propagates too. That one is a real cost rather than a win: it is
+neither quota nor bug, and it is not modelled. A caller that wants transients
+retried should retry, since widening the pattern list to catch them would restore
+the route-bugs-around behaviour the narrow gate exists to prevent.
 
 ## What this does not do
 

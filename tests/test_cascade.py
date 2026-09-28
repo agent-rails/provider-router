@@ -3,9 +3,10 @@ from __future__ import annotations
 import pytest
 
 from provider_router.cascade import run_with_failover
+from provider_router.config import CODEX_LIMIT_PATTERNS
 from provider_router.models import Provider
 from provider_router.telemetry import InMemorySink
-from provider_router.types import AllProvidersFailedError, ProviderTask
+from provider_router.types import AllProvidersFailedError, FailureReason, ProviderTask
 
 TASK = ProviderTask(prompt="review this diff for security issues")
 
@@ -158,3 +159,29 @@ def test_a_codex_error_that_is_not_a_limit_propagates_instead_of_degrading() -> 
                 Provider.MUSE: lambda t: "muse should never be reached",
             },
         )
+
+
+@pytest.mark.parametrize("pattern", CODEX_LIMIT_PATTERNS)
+def test_every_codex_limit_pattern_cascades(pattern: str) -> None:
+    # One message containing every pattern lets any of them be deleted with nothing
+    # failing -- a surviving mutation. Each pattern has to carry its own test.
+    def claude_fails(_: ProviderTask) -> str:
+        raise RuntimeError("you've hit your session limit")
+
+    def codex_fails(_: ProviderTask) -> str:
+        raise RuntimeError(f"codex says: {pattern}")
+
+    result = run_with_failover(
+        TASK,
+        {
+            Provider.CLAUDE: claude_fails,
+            Provider.CODEX: codex_fails,
+            Provider.MUSE: lambda t: "muse response",
+        },
+    )
+
+    assert result.response == "muse response"
+    assert result.final_attempt.provider == Provider.MUSE
+    # A cascading failure must be classified; None would leave an operator reading
+    # the JSONL unable to tell "failed, unclassified" from anything else.
+    assert result.attempts[1].failure_reason == FailureReason.LIMIT
