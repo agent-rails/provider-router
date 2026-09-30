@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
-from provider_router.config import CASCADE_ORDER, NARROW_FAILOVER_TRIGGERS
+from provider_router.config import NARROW_FAILOVER_TRIGGERS, resolve_cascade_order
 from provider_router.models import Provider
 from provider_router.telemetry import EmitFn, build_event
 from provider_router.types import (
@@ -33,10 +33,12 @@ def run_with_failover[ResponseT](
     task: ProviderTask,
     call_fns: dict[Provider, Callable[[ProviderTask], ResponseT]],
     emit: EmitFn | None = None,
+    order: tuple[Provider, ...] | None = None,
 ) -> FailoverResult[ResponseT]:
     attempts: list[ProviderAttempt] = []
+    cascade_order = resolve_cascade_order() if order is None else order
 
-    for provider in CASCADE_ORDER:
+    for provider in cascade_order:
         call_fn = call_fns.get(provider)
         if call_fn is None:
             continue

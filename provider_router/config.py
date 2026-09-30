@@ -1,8 +1,56 @@
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
+
 from provider_router.models import Provider
 
 CASCADE_ORDER: tuple[Provider, ...] = (Provider.CLAUDE, Provider.CODEX, Provider.MUSE)
+
+# Manual overflow. The cascade fires on failure only -- it waits for Claude to
+# return a limit error, then moves. When the operator already knows Claude's quota
+# is nearly spent, waiting for that error wastes the remaining headroom on a
+# request that will fail. PROVIDER_ROUTER_PREFER front-loads named providers for
+# the process, leaving the rest of the order intact.
+#
+#     PROVIDER_ROUTER_PREFER=codex   ->  (CODEX, CLAUDE, MUSE)
+#
+# Deliberately manual. There is no quota-remaining API, so any automatic version
+# would infer pressure from 429 history -- a stateful heuristic that is wrong
+# exactly when it matters. An operator flag is honest about what it knows.
+#
+# An unrecognised name RAISES rather than being ignored. A silently-dropped
+# preference means the operator believes they are conserving Claude quota while
+# every request still goes to Claude first -- a control that reads as active and
+# does nothing.
+PREFER_ENV_VAR = "PROVIDER_ROUTER_PREFER"
+
+
+def resolve_cascade_order(
+    env: Mapping[str, str] | None = None,
+    base: tuple[Provider, ...] = CASCADE_ORDER,
+) -> tuple[Provider, ...]:
+    """Cascade order for this call, honouring the manual overflow preference."""
+    source = os.environ if env is None else env
+    raw = (source.get(PREFER_ENV_VAR) or "").strip()
+    if not raw:
+        return base
+
+    valid = {p.value: p for p in base}
+    preferred: list[Provider] = []
+    for name in (part.strip().lower() for part in raw.split(",")):
+        if not name:
+            continue
+        if name not in valid:
+            raise ValueError(
+                f"{PREFER_ENV_VAR}={raw!r} names unknown provider {name!r}; "
+                f"valid options are {sorted(valid)}"
+            )
+        provider = valid[name]
+        if provider not in preferred:
+            preferred.append(provider)
+
+    return tuple(preferred) + tuple(p for p in base if p not in preferred)
 
 # Neither hop fails over on an arbitrary error: a logic, tool or auth failure
 # should be fixed, not routed around by switching vendor. Both gates are narrow.

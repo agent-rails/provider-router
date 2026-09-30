@@ -220,3 +220,70 @@ def test_every_codex_limit_pattern_cascades(pattern: str) -> None:
     # A cascading failure must be classified; None would leave an operator reading
     # the JSONL unable to tell "failed, unclassified" from anything else.
     assert result.attempts[1].failure_reason == FailureReason.LIMIT
+
+
+# --- manual overflow (PROVIDER_ROUTER_PREFER) ---------------------------------
+
+import pytest
+
+from provider_router.config import CASCADE_ORDER, resolve_cascade_order
+
+
+def test_no_preference_keeps_default_order():
+    assert resolve_cascade_order(env={}) == CASCADE_ORDER
+
+
+def test_blank_preference_keeps_default_order():
+    assert resolve_cascade_order(env={"PROVIDER_ROUTER_PREFER": "   "}) == CASCADE_ORDER
+
+
+def test_single_preference_front_loads_and_keeps_the_rest():
+    assert resolve_cascade_order(env={"PROVIDER_ROUTER_PREFER": "codex"}) == (
+        Provider.CODEX, Provider.CLAUDE, Provider.MUSE,
+    )
+
+
+def test_multiple_preferences_keep_their_given_order():
+    assert resolve_cascade_order(env={"PROVIDER_ROUTER_PREFER": "muse,codex"}) == (
+        Provider.MUSE, Provider.CODEX, Provider.CLAUDE,
+    )
+
+
+def test_preference_is_case_and_space_insensitive():
+    assert resolve_cascade_order(env={"PROVIDER_ROUTER_PREFER": " CODEX , claude "}) == (
+        Provider.CODEX, Provider.CLAUDE, Provider.MUSE,
+    )
+
+
+def test_duplicate_preference_is_not_repeated():
+    assert resolve_cascade_order(env={"PROVIDER_ROUTER_PREFER": "codex,codex"}) == (
+        Provider.CODEX, Provider.CLAUDE, Provider.MUSE,
+    )
+
+
+def test_unknown_provider_raises_rather_than_being_ignored():
+    """A silently-dropped preference is a control that reads as active and does nothing."""
+    with pytest.raises(ValueError) as excinfo:
+        resolve_cascade_order(env={"PROVIDER_ROUTER_PREFER": "gpt"})
+    assert "gpt" in str(excinfo.value)
+    assert "claude" in str(excinfo.value)
+
+
+def test_explicit_order_argument_overrides_the_env():
+    """An explicit order wins: callers that already decided are not second-guessed."""
+    calls: list[Provider] = []
+
+    def record(provider: Provider):
+        def _call(task):
+            calls.append(provider)
+            return f"ok-{provider.value}"
+        return _call
+
+    task = ProviderTask(prompt="p", category="chat", tags=())
+    result = run_with_failover(
+        task,
+        {p: record(p) for p in CASCADE_ORDER},
+        order=(Provider.MUSE, Provider.CLAUDE),
+    )
+    assert calls == [Provider.MUSE]
+    assert result.response == "ok-muse"
