@@ -85,10 +85,12 @@ For an integrated task-start plan, install both sibling projects, then run from
 this repository:
 
 ```bash
-PYTHONPATH=../model-router uv run python examples/smart_dispatch.py --category coding_simple < task.txt
+PYTHONPATH=../model-router uv run python examples/smart_dispatch.py < task.txt
 ```
 
-This prints a plan without calling a model. Add `--execute` to run it. The plan
+The prompt is classified automatically at task start. This prints a plan without
+calling a model; add `--execute` to run the read-only task. `--category` remains
+available when a trusted caller already knows the task type. The plan
 includes the recommended workflow and relevant wiki pointers; the CLI does not
 load the entire wiki into the prompt. Use `--tag inference` for AI-system work and
 `--workstreams 2` only for genuinely independent pieces. Explicit user model

@@ -15,7 +15,7 @@ from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 
-from model_router import LocalQualification, Runtime, TaskRequest, plan_task
+from model_router import LocalQualification, Runtime, TaskRequest, infer_task, plan_task
 from real_adapters import codex_run, local_run
 
 from provider_router import ProviderTask
@@ -48,7 +48,7 @@ def _qualification(path: Path) -> LocalQualification:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--category", required=True)
+    parser.add_argument("--category", help="optional trusted category; otherwise infer from the task")
     parser.add_argument("--tag", action="append", default=[])
     parser.add_argument("--workstreams", type=int, default=1)
     parser.add_argument("--local-qualification", type=Path)
@@ -59,15 +59,27 @@ def main() -> None:
     if not prompt.strip():
         parser.error("supply a task prompt on stdin")
 
-    qualification = _qualification(args.local_qualification) if args.local_qualification else None
-    digest = _installed_digest(qualification.model) if qualification else None
-    plan = plan_task(
+    inferred = infer_task(prompt) if args.category is None else None
+    task_request = (
         TaskRequest(
             prompt=prompt,
             category=args.category,
             tags=frozenset(args.tag),
             independent_workstreams=args.workstreams,
-        ),
+        )
+        if inferred is None
+        else TaskRequest(
+            prompt=prompt,
+            category=inferred.request.category,
+            tags=inferred.request.tags | frozenset(args.tag),
+            independent_workstreams=args.workstreams,
+            metadata_trusted=False,
+        )
+    )
+    qualification = _qualification(args.local_qualification) if args.local_qualification else None
+    digest = _installed_digest(qualification.model) if qualification else None
+    plan = plan_task(
+        task_request,
         local=qualification,
         installed_digest=digest,
         max_latency_ms=args.max_latency_ms,
@@ -83,6 +95,8 @@ def main() -> None:
                 "suggest_delegation": plan.codex.suggest_delegation,
                 "context_files": plan.codex.context_files,
                 "source": plan.codex.source.value,
+                "category": task_request.category,
+                "classification": inferred.rule if inferred else "caller supplied category",
                 "reason": plan.reason,
                 "qualification_ref": plan.qualification_ref,
                 "rejections": plan.rejections,
@@ -93,7 +107,7 @@ def main() -> None:
     if not args.execute:
         return
 
-    task = ProviderTask(prompt=prompt, category=args.category, tags=frozenset(args.tag))
+    task = ProviderTask(prompt=prompt, category=task_request.category, tags=task_request.tags)
     if plan.runtime == Runtime.CODEX:
         result = codex_run(task, model=plan.model, effort=plan.effort)
         print(result.text)
