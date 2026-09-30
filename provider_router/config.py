@@ -43,14 +43,14 @@ def resolve_cascade_order(
             continue
         if name not in valid:
             raise ValueError(
-                f"{PREFER_ENV_VAR}={raw!r} names unknown provider {name!r}; "
-                f"valid options are {sorted(valid)}"
+                f"{PREFER_ENV_VAR}={raw!r} names unknown provider {name!r}; valid options are {sorted(valid)}"
             )
         provider = valid[name]
         if provider not in preferred:
             preferred.append(provider)
 
     return tuple(preferred) + tuple(p for p in base if p not in preferred)
+
 
 # Neither hop fails over on an arbitrary error: a logic, tool or auth failure
 # should be fixed, not routed around by switching vendor. Both gates are narrow.

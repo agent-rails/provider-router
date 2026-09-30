@@ -239,25 +239,33 @@ def test_blank_preference_keeps_default_order():
 
 def test_single_preference_front_loads_and_keeps_the_rest():
     assert resolve_cascade_order(env={"PROVIDER_ROUTER_PREFER": "codex"}) == (
-        Provider.CODEX, Provider.CLAUDE, Provider.MUSE,
+        Provider.CODEX,
+        Provider.CLAUDE,
+        Provider.MUSE,
     )
 
 
 def test_multiple_preferences_keep_their_given_order():
     assert resolve_cascade_order(env={"PROVIDER_ROUTER_PREFER": "muse,codex"}) == (
-        Provider.MUSE, Provider.CODEX, Provider.CLAUDE,
+        Provider.MUSE,
+        Provider.CODEX,
+        Provider.CLAUDE,
     )
 
 
 def test_preference_is_case_and_space_insensitive():
     assert resolve_cascade_order(env={"PROVIDER_ROUTER_PREFER": " CODEX , claude "}) == (
-        Provider.CODEX, Provider.CLAUDE, Provider.MUSE,
+        Provider.CODEX,
+        Provider.CLAUDE,
+        Provider.MUSE,
     )
 
 
 def test_duplicate_preference_is_not_repeated():
     assert resolve_cascade_order(env={"PROVIDER_ROUTER_PREFER": "codex,codex"}) == (
-        Provider.CODEX, Provider.CLAUDE, Provider.MUSE,
+        Provider.CODEX,
+        Provider.CLAUDE,
+        Provider.MUSE,
     )
 
 
@@ -277,6 +285,7 @@ def test_explicit_order_argument_overrides_the_env():
         def _call(task):
             calls.append(provider)
             return f"ok-{provider.value}"
+
         return _call
 
     task = ProviderTask(prompt="p", category="chat", tags=())
