@@ -13,6 +13,30 @@ local Ollama model — and nothing tied them together. When Claude hit its usage
 mid-task, falling back to codex was a policy a human followed by noticing and
 re-dispatching. This library is that policy, executable and testable.
 
+## Manual overflow: `PROVIDER_ROUTER_PREFER`
+
+The cascade fires **on failure only** — it waits for Claude to return a limit error,
+then moves. When you already know Claude's quota is nearly spent, waiting for that
+error burns the remaining headroom on a request that will fail.
+
+```bash
+PROVIDER_ROUTER_PREFER=codex        # -> codex, claude, muse
+PROVIDER_ROUTER_PREFER=muse,codex   # -> muse, codex, claude
+```
+
+Named providers move to the front; the rest keep their relative order. Case- and
+space-insensitive, duplicates collapse. An explicit `order=` argument to
+`run_with_failover` wins over the environment.
+
+**An unrecognised name raises.** A silently-dropped preference means you believe you
+are conserving Claude quota while every request still goes to Claude first — a
+control that reads as active and does nothing.
+
+Deliberately manual: there is no quota-remaining API, so an automatic version would
+infer pressure from 429 history, a stateful heuristic that is wrong exactly when it
+matters. This flag is honest about what it knows.
+
+
 ## Install
 
 ```bash
