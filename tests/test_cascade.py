@@ -139,6 +139,24 @@ def test_telemetry_emitted_for_every_attempt() -> None:
     assert len(sink.successes()) == 1
 
 
+def test_provider_exception_text_is_not_retained_in_attempt_or_telemetry() -> None:
+    sink = InMemorySink()
+    marker = "private-prompt-marker"
+
+    def claude_fails(_: ProviderTask) -> str:
+        raise RuntimeError(f"session limit: {marker}")
+
+    result = run_with_failover(
+        TASK,
+        {Provider.CLAUDE: claude_fails, Provider.CODEX: lambda _: "done"},
+        emit=sink,
+    )
+
+    assert result.attempts[0].error == "RuntimeError"
+    assert marker not in repr(result.attempts)
+    assert marker not in repr(sink.events)
+
+
 def test_a_codex_error_that_is_not_a_limit_propagates_instead_of_degrading() -> None:
     # The consequence of narrowing the codex gate, asserted rather than assumed.
     # Answering from a local model when codex credentials are broken hides the

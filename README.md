@@ -1,8 +1,13 @@
 # provider-router
 
-Vendor-failover orchestration for Claude / Codex / local-model agent work. When one
-vendor is exhausted, the work continues on the next — and when a vendor is *broken*
-rather than exhausted, it doesn't.
+Vendor-failover orchestration for Claude / Codex / local-model calls. A caller
+supplies the provider functions; this library cannot observe quota in an existing
+interactive Claude or Codex session. It cascades only on recognized quota errors.
+
+**Status: experimental.** The library and read-only adapter are tested, but no
+accepted-task cost or reliability improvement has been measured. Use the generic
+failover API only for read-only or safely repeatable calls. Do not replay an
+agent workflow after an unknown result from a side effect.
 
 See `docs/DESIGN.md` for architecture and rationale.
 
@@ -73,7 +78,10 @@ rather than treated as failing. When every provider fails, `AllProvidersFailedEr
 carries the whole attempt chain.
 
 For telemetry across runs, pass `emit=JsonlSink("~/.provider_router/events.jsonl")`.
-`InMemorySink` is for tests.
+`InMemorySink` is for tests. Stored attempts and telemetry retain the exception
+type, never provider exception text, because an error may quote prompt content
+or a credential. The original exception still reaches the caller when failover
+is refused.
 
 ## Smart read-only dispatch
 
@@ -90,9 +98,9 @@ PYTHONPATH=../model-router uv run python examples/smart_dispatch.py < task.txt
 
 The prompt is classified automatically at task start. This prints a plan without
 calling a model; add `--execute` to run the read-only task. `--category` remains
-available when a trusted caller already knows the task type. The plan
-includes the recommended workflow and relevant wiki pointers; the CLI does not
-load the entire wiki into the prompt. Use `--tag inference` for AI-system work and
+available when a trusted caller already knows the task type. The plan includes
+the recommended workflow; project instructions own knowledge discovery. Use
+`--tag inference` for AI-system work and
 `--workstreams 2` only for genuinely independent pieces. Explicit user model
 choices remain with the caller; this script does not override an existing session.
 
