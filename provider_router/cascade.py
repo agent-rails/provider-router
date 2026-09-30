@@ -53,7 +53,9 @@ def run_with_failover[ResponseT](
                 provider=provider,
                 succeeded=False,
                 failure_reason=_classify_failure(provider, error) if cascade else None,
-                error=str(error),
+                # Provider exception text may include prompt fragments or credentials.
+                # Keep only the error class in stored attempts and telemetry.
+                error=type(error).__name__,
                 duration_ms=duration_ms,
             )
             attempts.append(attempt)

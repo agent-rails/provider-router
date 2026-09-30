@@ -94,14 +94,14 @@ remains a manual switch to a separate `codex` terminal session.
 
 ## Quality note on the Muse tier
 
-The Muse tier runs `deepseek-r1:8b` via local Ollama — a reasoning model
-(chain-of-thought before answering), which trades latency for quality: one
-measured sample against a trivial prompt took ~17.5s, versus sub-second for
-Claude/codex. It's a last-resort tier, not a casual substitute — callers
-should treat `FailoverResult.degraded` as a signal to flag output quality
-downstream, not just a log line.
+Historically, one `deepseek-r1:8b` sample against a trivial prompt took ~17.5s,
+versus sub-second for the hosted alternatives in that run. This is not a current
+latency benchmark or quality qualification. The local tier is a last resort;
+callers should treat `FailoverResult.degraded` as a signal to verify output
+quality downstream, not just a log line.
 
-This tier's backing model has changed before (originally `llama3.1:8b`, then
-`muse-glimmer:30b-mlx`, now `deepseek-r1:8b`) and may change again — "Muse" is
-the architectural tier label (last-resort local fallback), independent of
-which specific model backs it at any point.
+This tier's backing model has changed before (`llama3.1:8b`, then
+`muse-glimmer:30b-mlx`, then `deepseek-r1:8b`). There is no shipped local model
+default now: callers must name a model, and the integrated dispatcher requires
+a current qualification record. "Muse" is the historical tier label, not a
+quality guarantee for a particular artifact.

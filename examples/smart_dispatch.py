@@ -93,7 +93,6 @@ def main() -> None:
                 "workflow": plan.codex.workflow.value,
                 "workflow_steps": plan.codex.workflow_steps,
                 "suggest_delegation": plan.codex.suggest_delegation,
-                "context_files": plan.codex.context_files,
                 "source": plan.codex.source.value,
                 "category": task_request.category,
                 "classification": inferred.rule if inferred else "caller supplied category",
