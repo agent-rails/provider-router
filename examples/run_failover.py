@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Run the codex -> muse fallback cascade for a single prompt.
+"""Run the codex -> configured local fallback cascade for a single prompt.
 
 Usage: python3 run_failover.py "<prompt>"
 
-Assumes tier 1 (Claude) has already failed -- this script starts at
-codex and falls through to the local Muse Glimmer model on any codex
-failure. It is the practical entry point: Claude cannot invoke itself
-programmatically, so tier 1 is whatever already happened before this
-script gets called.
+Assumes tier 1 (Claude) has already failed. Local fallback requires an explicit
+PROVIDER_ROUTER_LOCAL_MODEL; Codex failover occurs only on a recognized quota
+error. Claude cannot invoke itself programmatically.
 """
 
 from __future__ import annotations

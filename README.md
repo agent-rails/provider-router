@@ -51,6 +51,41 @@ carries the whole attempt chain.
 For telemetry across runs, pass `emit=JsonlSink("~/.provider_router/events.jsonl")`.
 `InMemorySink` is for tests.
 
+## Smart read-only dispatch
+
+The Codex adapter now accepts an explicit `model` and `effort`, passes the prompt
+through stdin, and can return the final answer plus structured token usage with
+`codex_run()`. Missing usage is `None`. It keeps Codex in `read-only` mode.
+
+For an integrated task-start plan, install both sibling projects, then run from
+this repository:
+
+```bash
+PYTHONPATH=../model-router uv run python examples/smart_dispatch.py --category coding_simple < task.txt
+```
+
+This prints a plan without calling a model. Add `--execute` to run it. The plan
+includes the recommended workflow and relevant wiki pointers; the CLI does not
+load the entire wiki into the prompt. Use `--tag inference` for AI-system work and
+`--workstreams 2` only for genuinely independent pieces. Explicit user model
+choices remain with the caller; this script does not override an existing session.
+
+Local routing requires `--local-qualification path.json`. The record must contain
+`model`, `digest`, `categories`, `evidence_ref`, `valid_until`,
+`max_prompt_chars`, and measured `p95_latency_ms`. The CLI checks the live Ollama
+digest before selecting it. Qualification must come from a representative eval
+run with an acceptance threshold and retained results; an installed model alone
+does not qualify. There is no shipped qualification record. The old hardcoded
+`deepseek-r1:8b` default was removed because that model was absent from the
+inspected local Ollama instance on 2026-09-30. Direct local callbacks now need
+an explicit `model=` or `PROVIDER_ROUTER_LOCAL_MODEL`.
+
+Compare total cost and acceptance, including retries and validation, before
+changing the default route. Raw token counts are not actual subscription spend;
+cached input, API pricing, and plan credits have different accounting. An unknown
+completion after side effects must be reconciled before replay, so this CLI
+executes only read-only Codex tasks and does not automatically fail over.
+
 ## It never invokes Claude
 
 Codex and Ollama are ordinary subprocess and HTTP calls, so this library *could* own
